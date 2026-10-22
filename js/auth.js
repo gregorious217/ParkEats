@@ -1,65 +1,69 @@
 import { sb, isConfigured } from './supabase.js';
-import { ALLOWED_EMAIL_DOMAIN } from './config.js';
 
 const modal = document.getElementById('login');
-const emailForm = document.getElementById('login-email-form');
-const codeForm = document.getElementById('login-code-form');
+const form = document.getElementById('login-form');
 const errorEl = document.getElementById('login-error');
-let pendingEmail = '';
+const $ = (id) => document.getElementById(id);
+let mode = 'signin'; // or 'signup'
+
+const FRIENDLY = [
+  [/invalid login credentials/i, 'Wrong email or password.'],
+  [/already registered|already exists/i, 'An account with this email already exists. Sign in instead.'],
+  [/password should be at least/i, 'Password must be at least 8 characters.'],
+  [/email not confirmed/i, 'Email confirmation is still on in Supabase. Turn off "Confirm email" (see README).'],
+];
+const friendly = (msg) => FRIENDLY.find(([re]) => re.test(msg))?.[1] ?? msg;
+
+function setMode(next) {
+  mode = next;
+  const signup = mode === 'signup';
+  $('login-name-row').hidden = !signup;
+  $('login-name').required = signup;
+  $('login-password-hint').hidden = !signup;
+  $('login-password').autocomplete = signup ? 'new-password' : 'current-password';
+  $('login-submit').textContent = signup ? 'Create account' : 'Sign in';
+  $('login-switch-text').textContent = signup ? 'Already have an account?' : 'New here?';
+  $('login-switch').textContent = signup ? 'Sign in' : 'Create an account';
+  errorEl.textContent = '';
+}
 
 export function initLogin() {
-  emailForm.addEventListener('submit', async (e) => {
+  $('login-switch').addEventListener('click', () => setMode(mode === 'signin' ? 'signup' : 'signin'));
+
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorEl.textContent = '';
-    const email = document.getElementById('login-email').value.trim().toLowerCase();
-    if (!email.endsWith(`@${ALLOWED_EMAIL_DOMAIN}`)) {
-      errorEl.textContent = `Please use your @${ALLOWED_EMAIL_DOMAIN} email address.`;
+    const email = $('login-email').value.trim().toLowerCase();
+    const password = $('login-password').value;
+    const btn = $('login-submit');
+    btn.disabled = true;
+
+    let result;
+    if (mode === 'signup') {
+      const displayName = $('login-name').value.trim();
+      result = await sb.auth.signUp({ email, password, options: { data: { display_name: displayName } } });
+      if (!result.error && !result.data.session) {
+        result.error = { message: 'Email not confirmed' };
+      }
+    } else {
+      result = await sb.auth.signInWithPassword({ email, password });
+    }
+
+    btn.disabled = false;
+    if (result.error) {
+      errorEl.textContent = friendly(result.error.message);
       return;
     }
-    const btn = emailForm.querySelector('button');
-    btn.disabled = true;
-    const { error } = await sb.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin + window.location.pathname },
-    });
-    btn.disabled = false;
-    if (error) {
-      errorEl.textContent = error.message;
-      return;
-    }
-    pendingEmail = email;
-    document.getElementById('login-sent-to').textContent = email;
-    emailForm.hidden = true;
-    codeForm.hidden = false;
-    document.getElementById('login-code').focus();
-  });
-
-  // Typing the emailed code avoids problems with link scanners and opening the link in another browser.
-  codeForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    errorEl.textContent = '';
-    const token = document.getElementById('login-code').value.trim();
-    const btn = codeForm.querySelector('button[type="submit"]');
-    btn.disabled = true;
-    const { error } = await sb.auth.verifyOtp({ email: pendingEmail, token, type: 'email' });
-    btn.disabled = false;
-    if (error) errorEl.textContent = 'That code is invalid or has expired. Request a new one.';
-  });
-
-  document.getElementById('login-back').addEventListener('click', () => {
-    codeForm.hidden = true;
-    emailForm.hidden = false;
-    errorEl.textContent = '';
+    form.reset();
   });
 }
 
 export function showLogin(message = '') {
-  codeForm.hidden = true;
-  emailForm.hidden = false;
+  setMode('signin');
   errorEl.textContent = message;
   if (!isConfigured) {
     errorEl.textContent = 'Setup needed: add your Supabase URL and key to js/config.js (see README).';
-    emailForm.querySelector('button').disabled = true;
+    $('login-submit').disabled = true;
   }
   modal.hidden = false;
 }

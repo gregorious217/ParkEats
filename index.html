@@ -42,18 +42,23 @@
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="login-title">
       <h1 id="login-title">🌲 ParkEats</h1>
       <p class="muted">Restaurants recommended by State Parks staff, near the parks we work in.</p>
-      <form id="login-email-form">
-        <label for="login-email">Your @parks.ca.gov email</label>
-        <input id="login-email" type="email" required autocomplete="email" placeholder="first.last@parks.ca.gov">
-        <button class="btn btn-primary btn-block" type="submit">Email me a sign-in code</button>
+      <form id="login-form">
+        <div id="login-name-row" hidden>
+          <label for="login-name">Display name</label>
+          <input id="login-name" type="text" maxlength="60" autocomplete="nickname" placeholder="How others will see you">
+        </div>
+        <label for="login-email">Email</label>
+        <input id="login-email" type="email" required autocomplete="email">
+        <label for="login-password">Password</label>
+        <input id="login-password" type="password" required minlength="8" autocomplete="current-password">
+        <p class="hint" id="login-password-hint" hidden>At least 8 characters.</p>
+        <button class="btn btn-primary btn-block" type="submit" id="login-submit" style="margin-top:16px">Sign in</button>
       </form>
-      <form id="login-code-form" hidden>
-        <p>We sent a 6-digit code to <strong id="login-sent-to"></strong>. Enter it here, or click the link in the email.</p>
-        <label for="login-code">Sign-in code</label>
-        <input id="login-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}" required placeholder="123456">
-        <button class="btn btn-primary btn-block" type="submit">Sign in</button>
-        <button class="btn btn-link" type="button" id="login-back">Use a different email</button>
-      </form>
+      <p class="small" style="text-align:center;margin:12px 0 0">
+        <span id="login-switch-text">New here?</span>
+        <button class="btn-link" type="button" id="login-switch">Create an account</button>
+      </p>
+      <p class="hint" style="text-align:center">Forgot your password? Ask a ParkEats admin to reset it.</p>
       <p class="form-error" id="login-error" role="alert"></p>
     </div>
   </div>

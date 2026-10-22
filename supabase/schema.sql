@@ -10,14 +10,13 @@ create extension if not exists pg_trgm with schema extensions;
 -- Helpers
 -- ---------------------------------------------------------------------
 
--- True when the signed-in user has a @parks.ca.gov email.
--- Second line of defense behind the signup hook below.
-create or replace function public.is_staff()
+-- True for any signed-in user. Visitors who aren't signed in can't see anything.
+create or replace function public.is_member()
 returns boolean
 language sql stable
 set search_path = ''
 as $$
-  select coalesce(lower(auth.jwt() ->> 'email') like '%@parks.ca.gov', false);
+  select auth.uid() is not null;
 $$;
 
 -- ---------------------------------------------------------------------
@@ -38,7 +37,7 @@ language sql stable
 security definer
 set search_path = ''
 as $$
-  select public.is_staff() and exists (
+  select public.is_member() and exists (
     select 1 from public.profiles where id = auth.uid() and is_admin
   );
 $$;
@@ -133,27 +132,8 @@ create table public.flags (
 );
 
 -- ---------------------------------------------------------------------
--- Signup: restrict to @parks.ca.gov and auto-create profiles
+-- Signup: auto-create a profile for each new account
 -- ---------------------------------------------------------------------
-
--- Enable in Dashboard -> Authentication -> Hooks -> "Before User Created"
--- (type: Postgres function, function: public.hook_restrict_signup_domain)
-create or replace function public.hook_restrict_signup_domain(event jsonb)
-returns jsonb
-language plpgsql
-as $$
-begin
-  if lower(event -> 'user' ->> 'email') like '%@parks.ca.gov' then
-    return '{}'::jsonb;
-  end if;
-  return jsonb_build_object('error', jsonb_build_object(
-    'http_code', 403,
-    'message', 'ParkEats is limited to @parks.ca.gov email addresses.'));
-end;
-$$;
-grant usage on schema public to supabase_auth_admin;
-grant execute on function public.hook_restrict_signup_domain(jsonb) to supabase_auth_admin;
-revoke execute on function public.hook_restrict_signup_domain(jsonb) from authenticated, anon, public;
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -163,7 +143,11 @@ set search_path = ''
 as $$
 begin
   insert into public.profiles (id, email, display_name)
-  values (new.id, new.email, left(split_part(new.email, '@', 1), 60));
+  values (
+    new.id,
+    new.email,
+    left(coalesce(nullif(trim(new.raw_user_meta_data ->> 'display_name'), ''),
+                  split_part(new.email, '@', 1)), 60));
   return new;
 end;
 $$;
@@ -321,25 +305,27 @@ alter table public.comments    enable row level security;
 alter table public.follows     enable row level security;
 alter table public.flags       enable row level security;
 
--- profiles: everyone (staff) reads; users may only change their display name
-create policy "profiles read"   on public.profiles for select to authenticated using (public.is_staff());
+-- profiles: members see names (not emails); users may only change their display name
+revoke select on public.profiles from authenticated, anon;
+grant select (id, display_name, is_admin, created_at) on public.profiles to authenticated;
+create policy "profiles read"   on public.profiles for select to authenticated using (public.is_member());
 create policy "profiles update" on public.profiles for update to authenticated
   using (id = auth.uid()) with check (id = auth.uid());
 revoke update on public.profiles from authenticated, anon;
 grant update (display_name) on public.profiles to authenticated;
 
 -- food types: read all, admins manage
-create policy "food_types read"  on public.food_types for select to authenticated using (public.is_staff());
+create policy "food_types read"  on public.food_types for select to authenticated using (public.is_member());
 create policy "food_types admin" on public.food_types for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
 
 -- parks: read only
-create policy "parks read" on public.parks for select to authenticated using (public.is_staff());
+create policy "parks read" on public.parks for select to authenticated using (public.is_member());
 
 -- restaurants: owners write their own, admins any
-create policy "restaurants read"   on public.restaurants for select to authenticated using (public.is_staff());
+create policy "restaurants read"   on public.restaurants for select to authenticated using (public.is_member());
 create policy "restaurants insert" on public.restaurants for insert to authenticated
-  with check (public.is_staff() and created_by = auth.uid());
+  with check (public.is_member() and created_by = auth.uid());
 create policy "restaurants update" on public.restaurants for update to authenticated
   using (created_by = auth.uid() or public.is_admin())
   with check (created_by = auth.uid() or public.is_admin());
@@ -347,10 +333,10 @@ create policy "restaurants delete" on public.restaurants for delete to authentic
   using (created_by = auth.uid() or public.is_admin());
 
 -- votes: one per user per restaurant, not on your own restaurant
-create policy "votes read"   on public.votes for select to authenticated using (public.is_staff());
+create policy "votes read"   on public.votes for select to authenticated using (public.is_member());
 create policy "votes insert" on public.votes for insert to authenticated
   with check (
-    public.is_staff() and user_id = auth.uid()
+    public.is_member() and user_id = auth.uid()
     and not exists (select 1 from public.restaurants r
                     where r.id = votes.restaurant_id and r.created_by = auth.uid()));
 create policy "votes update" on public.votes for update to authenticated
@@ -359,24 +345,24 @@ create policy "votes delete" on public.votes for delete to authenticated
   using (user_id = auth.uid());
 
 -- comments
-create policy "comments read"   on public.comments for select to authenticated using (public.is_staff());
+create policy "comments read"   on public.comments for select to authenticated using (public.is_member());
 create policy "comments insert" on public.comments for insert to authenticated
-  with check (public.is_staff() and user_id = auth.uid());
+  with check (public.is_member() and user_id = auth.uid());
 create policy "comments update" on public.comments for update to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy "comments delete" on public.comments for delete to authenticated
   using (user_id = auth.uid() or public.is_admin());
 
 -- follows
-create policy "follows read"   on public.follows for select to authenticated using (public.is_staff());
+create policy "follows read"   on public.follows for select to authenticated using (public.is_member());
 create policy "follows insert" on public.follows for insert to authenticated
-  with check (public.is_staff() and follower_id = auth.uid());
+  with check (public.is_member() and follower_id = auth.uid());
 create policy "follows delete" on public.follows for delete to authenticated
   using (follower_id = auth.uid());
 
 -- flags: anyone can report; reporters see their own; admins see/resolve all
 create policy "flags insert" on public.flags for insert to authenticated
-  with check (public.is_staff() and reporter_id = auth.uid());
+  with check (public.is_member() and reporter_id = auth.uid());
 create policy "flags read"   on public.flags for select to authenticated
   using (reporter_id = auth.uid() or public.is_admin());
 create policy "flags update" on public.flags for update to authenticated
@@ -393,9 +379,9 @@ values ('photos', 'photos', false, 5242880, array['image/jpeg', 'image/png', 'im
 on conflict (id) do nothing;
 
 create policy "photos read" on storage.objects for select to authenticated
-  using (bucket_id = 'photos' and public.is_staff());
+  using (bucket_id = 'photos' and public.is_member());
 create policy "photos upload own folder" on storage.objects for insert to authenticated
-  with check (bucket_id = 'photos' and public.is_staff()
+  with check (bucket_id = 'photos' and public.is_member()
               and (storage.foldername(name))[1] = auth.uid()::text);
 create policy "photos delete own or admin" on storage.objects for delete to authenticated
   using (bucket_id = 'photos'

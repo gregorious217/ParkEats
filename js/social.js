@@ -61,6 +61,15 @@ export async function openProfile(userId) {
     });
 
     view.addEventListener('submit', async (e) => {
+      if (e.target.dataset.form === 'password') {
+        e.preventDefault();
+        const input = e.target.querySelector('input');
+        const { error } = await sb.auth.updateUser({ password: input.value });
+        if (error) return showError(error);
+        input.value = '';
+        toast('Password updated.');
+        return;
+      }
       if (e.target.dataset.form !== 'name') return;
       e.preventDefault();
       const name = e.target.querySelector('input').value.trim();
@@ -127,6 +136,12 @@ function profileHtml(ctx, isMe) {
       <label for="display-name">Display name</label>
       <div class="row"><input id="display-name" type="text" maxlength="60" required value="${esc(p.display_name)}" style="flex:1">
       <button class="btn btn-sm" type="submit">Save</button></div>
+    </form>
+    <form data-form="password">
+      <label for="new-password">Change password</label>
+      <div class="row"><input id="new-password" type="password" minlength="8" required autocomplete="new-password"
+        placeholder="New password (8+ characters)" style="flex:1">
+      <button class="btn btn-sm" type="submit">Update</button></div>
     </form>` : ''}
 
     <h3 class="section-title">Recommendations</h3>

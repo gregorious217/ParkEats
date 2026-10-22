@@ -55,12 +55,12 @@ async function signedIn(user) {
   state.user = user;
   hideLogin();
   try {
-    const { data: profile, error } = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle();
+    const { data: profile, error } = await sb.from('profiles')
+      .select('id, display_name, is_admin, created_at').eq('id', user.id).maybeSingle();
     if (error) throw error;
     if (!profile) {
-      // Non-staff account (e.g. signup hook not enabled): RLS hides everything.
       await sb.auth.signOut();
-      showLogin('This app is limited to @parks.ca.gov accounts.');
+      showLogin('Your account profile is missing. Ask an admin for help.');
       return;
     }
     state.profile = profile;

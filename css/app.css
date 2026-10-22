@@ -75,7 +75,7 @@ h1, h2, h3 { margin: 0 0 0.4em; line-height: 1.2; }
 .btn-sm { padding: 4px 10px; font-size: 0.85rem; }
 
 label { display: block; font-weight: 600; font-size: 0.9rem; margin: 12px 0 4px; }
-input[type="text"], input[type="email"], input[type="number"], input:not([type]), select, textarea {
+input[type="text"], input[type="email"], input[type="password"], input[type="number"], input:not([type]), select, textarea {
   width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--white);
 }
 textarea { resize: vertical; min-height: 70px; }

@@ -26,34 +26,24 @@ scripts/fetch-parks.mjs   re-download park boundaries if they change
 1. Sign up at supabase.com and create a **New project**. Use a strong database password, and pick the region **West US**.
 2. Open **SQL Editor → New query**, paste the whole of `supabase/schema.sql`, and click **Run**.
 
-### 2. Restrict sign-in to @parks.ca.gov
-1. Go to **Authentication → Hooks → Add hook → Before User Created**.
-2. Choose **Postgres function**, then select `public.hook_restrict_signup_domain`.
-3. Click **Create**.
+> **Already ran an older schema** that limited sign-up to @parks.ca.gov? Run `supabase/open-signup.sql` too, and delete the "Before User Created" hook under **Authentication → Hooks** if you added one.
 
-The database also hides all data from non-parks.ca.gov accounts, so the restriction still holds if the hook is ever turned off.
+### 2. Sign-in settings (no email service needed)
+People sign in with an email and password. ParkEats never sends email.
 
-### 3. Email sign-in codes
-Some email security scanners "click" sign-in links before you do, which uses up the link. To avoid this, the app also accepts the 6-digit code from the email. You need to add the code to the email templates:
+1. Go to **Authentication → Sign In / Providers → Email**.
+2. Turn **Confirm email** **OFF**. This is the step that removes the need for an email service.
+3. Make sure **Allow new users to sign up** (under Authentication → Sign In / Providers) is **ON**.
+4. Optionally, set **Minimum password length** to `8`.
 
-1. Go to **Authentication → Emails → Templates**.
-2. In the **Magic Link** template, add this line: `<p>Or enter this code: <b>{{ .Token }}</b></p>`
-3. Add the same line to the **Confirm signup** template.
+What this means:
+- **Anyone can create an account**, and the email isn't checked. Use **Report** and the admin page to remove anything unwanted.
+- **Email addresses are hidden** from other users. People only see display names.
+- **Signed-in users** can change their password from **My profile**.
+- **Forgotten passwords** are reset by an admin (see "Reset a password" below).
 
-### 4. Email delivery (important)
-Supabase's built-in email server only sends a few emails per hour and is meant for testing. Set up a free email service instead, such as [Resend](https://resend.com):
-
-1. Create an account with the email service.
-2. In Supabase, go to **Authentication → Emails → SMTP Settings** and enter that service's SMTP details.
-
-> State email filtering may quarantine these emails. Send yourself a test first. If it doesn't arrive, ask IT to allowlist the sender address.
-
-### 5. Site URL
-1. Go to **Authentication → URL Configuration**.
-2. Set **Site URL** to your hosted address, e.g. `https://parkeats.netlify.app`.
-3. Add these **Redirect URLs**:
-   - your hosted address;
-   - `http://localhost:8765` (for local testing).
+### 3–5. (Not needed)
+The email template and SMTP steps are no longer required.
 
 ### 6. Load park boundaries into the database
 The database uses the park boundaries to tag the nearest park and enforce the 20-mile rule.
@@ -82,12 +72,12 @@ This key is meant to be public, because the database rules protect the data.
 ```powershell
 npx http-server -p 8765 -c-1 .
 ```
-Open http://localhost:8765 and sign in with your @parks.ca.gov email.
+Open http://localhost:8765, click **Create an account**, and sign up.
 
 ### 9. Make yourself an admin
-After your first sign-in, run this in the **SQL Editor**:
+After your first sign-in, run this in the **SQL Editor**, using the email you signed up with:
 ```sql
-update public.profiles set is_admin = true where email = 'first.last@parks.ca.gov';
+update public.profiles set is_admin = true where email = 'you@example.com';
 ```
 Reload the page. **Admin** now appears in your name menu. From there you can:
 - review reported content;
@@ -99,7 +89,7 @@ Pick one:
 - **Netlify:** drag the project folder onto https://app.netlify.com/drop.
 - **Cloudflare Pages:** connect a Git repo and deploy. There is no build command; the output directory is `/`.
 
-Afterwards, set the final URL as the Site URL from step 5.
+Optionally, set the final URL as the **Site URL** under Authentication → URL Configuration.
 
 ### 11. Keep the free tier awake
 Free Supabase projects pause after 7 days with no activity. To prevent this:
@@ -110,11 +100,24 @@ The included workflow pings the database twice a week. The alternative is Supaba
 
 ---
 
+## Admin tasks
+
+**Reset a forgotten password.** Run this in the SQL Editor, then give the person the temporary password and ask them to change it under **My profile**:
+```sql
+update auth.users
+set encrypted_password = extensions.crypt('TempPass123!', extensions.gen_salt('bf'))
+where email = 'person@example.com';
+```
+
+**Remove an account** (deletes their pins, votes and comments too): go to **Authentication → Users**, then **⋯ → Delete user**.
+
+---
+
 ## How it works
 
 | Feature | Where |
 |---|---|
-| Sign-in (emailed code or link, @parks.ca.gov only) | `js/auth.js`, `hook_restrict_signup_domain`, `is_staff()` |
+| Sign-in (email + password, no emails sent) | `js/auth.js`, `is_member()` |
 | Map, parks layer, pins, hover preview | `js/map.js`, `js/card.js` (`previewHtml`) |
 | Add / edit (place search, click and drag pin, photo) | `js/restaurants.js` |
 | Within 20 miles + nearest park auto-tag | `restaurants_before_write` trigger, `nearest_park()` |
@@ -129,7 +132,7 @@ The included workflow pings the database twice a week. The alternative is Supaba
 - One vote per person per restaurant, and you can't vote on your own pin.
 - You can't make yourself an admin.
 
-**Photos** are resized in the browser to 1600 px before upload. They are stored in a private bucket that only signed-in staff can view.
+**Photos** are resized in the browser to 1600 px before upload. They are stored in a private bucket that only signed-in users can view.
 
 **Third-party services (all free, no keys):**
 - Esri basemaps;

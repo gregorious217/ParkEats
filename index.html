@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ParkEats</title>
+  <meta name="description" content="Restaurants recommended by California State Parks staff, near the parks they work in.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌲</text></svg>">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🌲 <span>ParkEats</span></div>
+    <div class="topbar-actions" id="topbar-actions" hidden>
+      <button class="btn btn-ghost" id="btn-filters" aria-expanded="false" aria-controls="filters">
+        ⚙<span class="lbl"> Filters</span> <span class="badge" id="filter-count" hidden></span>
+      </button>
+      <button class="btn btn-primary" id="btn-add">＋<span class="lbl"> Add restaurant</span></button>
+      <div class="menu">
+        <button class="btn btn-ghost" id="btn-user" aria-haspopup="true" aria-expanded="false"></button>
+        <div class="menu-list" id="user-menu" hidden>
+          <button data-action="profile">My profile</button>
+          <button data-action="admin" id="menu-admin" hidden>Admin</button>
+          <button data-action="signout">Sign out</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="filters" id="filters" hidden aria-label="Filters"></aside>
+    <div id="map" aria-label="Map of California State Parks and recommended restaurants"></div>
+    <aside class="panel" id="panel" hidden aria-live="polite">
+      <button class="panel-close" id="panel-close" aria-label="Close panel">✕</button>
+      <div class="panel-body" id="panel-body"></div>
+    </aside>
+  </main>
+
+  <div class="modal-backdrop" id="login" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="login-title">
+      <h1 id="login-title">🌲 ParkEats</h1>
+      <p class="muted">Restaurants recommended by State Parks staff, near the parks we work in.</p>
+      <form id="login-email-form">
+        <label for="login-email">Your @parks.ca.gov email</label>
+        <input id="login-email" type="email" required autocomplete="email" placeholder="first.last@parks.ca.gov">
+        <button class="btn btn-primary btn-block" type="submit">Email me a sign-in code</button>
+      </form>
+      <form id="login-code-form" hidden>
+        <p>We sent a 6-digit code to <strong id="login-sent-to"></strong>. Enter it here, or click the link in the email.</p>
+        <label for="login-code">Sign-in code</label>
+        <input id="login-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}" required placeholder="123456">
+        <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+        <button class="btn btn-link" type="button" id="login-back">Use a different email</button>
+      </form>
+      <p class="form-error" id="login-error" role="alert"></p>
+    </div>
+  </div>
+
+  <div class="toast-stack" id="toasts" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
